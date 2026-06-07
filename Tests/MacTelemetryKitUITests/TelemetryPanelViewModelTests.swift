@@ -30,4 +30,20 @@ final class TelemetryPanelViewModelTests: XCTestCase {
 
         XCTAssertTrue(store.events.isEmpty)
     }
+
+    @MainActor
+    func test_selected_event_tracks_current_selection() {
+        let store = TelemetryStore()
+        let event = TelemetryEvent.fixture(
+            name: "app_started",
+            message: "App started",
+            source: .swiftUI
+        )
+        store.append(event)
+
+        let viewModel = TelemetryPanelViewModel(store: store)
+        viewModel.select(event)
+
+        XCTAssertEqual(viewModel.selectedEvent?.id, event.id)
+    }
 }
