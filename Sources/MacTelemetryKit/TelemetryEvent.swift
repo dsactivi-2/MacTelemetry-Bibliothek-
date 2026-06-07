@@ -1,6 +1,6 @@
 import Foundation
 
-public struct TelemetryEvent: Sendable, Equatable, Identifiable {
+public struct TelemetryEvent: Sendable, Equatable, Identifiable, Codable {
     public let timestamp: Date
     public let level: TelemetryLevel
     public let category: TelemetryCategory

@@ -1,4 +1,4 @@
-public enum TelemetryCategory: String, Sendable, Equatable, CaseIterable {
+public enum TelemetryCategory: String, Sendable, Equatable, CaseIterable, Codable {
     case lifecycle
     case windowing
     case navigation
