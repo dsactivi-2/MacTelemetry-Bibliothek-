@@ -25,36 +25,59 @@ struct TelemetryDemoApp: App {
 
     var body: some Scene {
         WindowGroup("Telemetry Demo") {
-            VStack(spacing: 16) {
-                HStack {
-                    Button("Log Window Event") {
-                        telemetry.log(
-                            level: .info,
-                            category: .windowing,
-                            name: "window_opened",
-                            message: "Main window opened",
-                            source: .swiftUI,
-                            metadata: ["window_id": "main"]
-                        )
-                    }
+            TelemetryDemoRootView(telemetry: telemetry)
+        }
+    }
+}
 
-                    Button("Log Error Event") {
-                        telemetry.log(
-                            level: .error,
-                            category: .errors,
-                            name: "file_missing",
-                            message: "Missing config file",
-                            source: .manual,
-                            metadata: ["event_count": "\(telemetry.store.events.count)"],
-                            errorCode: "ENOENT"
-                        )
-                    }
+private struct TelemetryDemoRootView: View {
+    let telemetry: TelemetryClient
+    @State private var appKitObserver: TelemetryAppKitObserver?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Button("Log Window Event") {
+                    telemetry.log(
+                        level: .info,
+                        category: .windowing,
+                        name: "window_opened",
+                        message: "Main window opened",
+                        source: .swiftUI,
+                        metadata: ["window_id": "main"]
+                    )
                 }
 
-                TelemetryPanelView(store: telemetry.store)
+                Button("Log Error Event") {
+                    telemetry.log(
+                        level: .error,
+                        category: .errors,
+                        name: "file_missing",
+                        message: "Missing config file",
+                        source: .manual,
+                        metadata: ["event_count": "\(telemetry.store.events.count)"],
+                        errorCode: "ENOENT"
+                    )
+                }
+
+                Button("Capture Refresh Action") {
+                    TelemetryAction.capture(
+                        client: telemetry,
+                        name: "refresh_button",
+                        message: "Refresh button tapped",
+                        source: .swiftUI
+                    ) {}
+                }
             }
-            .padding()
-            .frame(minWidth: 1200, minHeight: 720)
+
+            TelemetryPanelView(store: telemetry.store)
+        }
+        .padding()
+        .frame(minWidth: 1200, minHeight: 720)
+        .onAppear {
+            if appKitObserver == nil {
+                appKitObserver = telemetry.attachAppKitObserver()
+            }
         }
     }
 }
