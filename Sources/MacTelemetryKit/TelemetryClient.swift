@@ -50,4 +50,15 @@ public final class TelemetryClient {
         store.append(event)
         logger.write(event)
     }
+
+    @MainActor
+    @discardableResult
+    public func attachAppKitObserver(
+        notificationCenter: NotificationCenter = .default
+    ) -> TelemetryAppKitObserver {
+        TelemetryAppKitObserver(
+            client: self,
+            notificationCenter: notificationCenter
+        )
+    }
 }
