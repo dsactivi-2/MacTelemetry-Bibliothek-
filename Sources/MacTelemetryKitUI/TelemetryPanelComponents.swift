@@ -69,12 +69,45 @@ struct TelemetryFilterSidebar: View {
 
 struct TelemetryEventTable: View {
     @Bindable var viewModel: TelemetryPanelViewModel
+    @State private var exportStatus: String?
+    @State private var exportError: String?
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("Filter events…", text: $viewModel.filter.searchText)
-                .textFieldStyle(.roundedBorder)
-                .padding(12)
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    ForEach(TelemetryCategory.allCases, id: \.self) { category in
+                        Button {
+                            viewModel.filter.categories = [category]
+                        } label: {
+                            Text("\(category.rawValue.capitalized) \(viewModel.count(for: category))")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Spacer()
+
+                    Button("Export Trace") {
+                        do {
+                            let url = try viewModel.exportTraceToTemporaryFile()
+                            exportStatus = "Exported to \(url.lastPathComponent)"
+                            exportError = nil
+                        } catch {
+                            exportError = error.localizedDescription
+                            exportStatus = nil
+                        }
+                    }
+
+                    Button("Clear", role: .destructive) {
+                        viewModel.clearEvents()
+                    }
+                }
+
+                TextField("Filter events…", text: $viewModel.filter.searchText)
+                    .textFieldStyle(.roundedBorder)
+            }
+            .padding(12)
 
             if viewModel.filteredEvents.isEmpty {
                 ContentUnavailableView(
@@ -119,6 +152,27 @@ struct TelemetryEventTable: View {
                 }
                 .listStyle(.plain)
             }
+
+            HStack {
+                Text("\(viewModel.store.events.count) events")
+                Text("•")
+                Text("\(viewModel.filteredEvents.count) filtered")
+                if let lastEventTimestamp = viewModel.lastEventTimestamp {
+                    Text("•")
+                    Text("last update \(lastEventTimestamp, format: .dateTime.hour().minute().second())")
+                }
+                Spacer()
+                if let exportError {
+                    Text(exportError)
+                        .foregroundStyle(.red)
+                } else if let exportStatus {
+                    Text(exportStatus)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.caption)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
         }
     }
 

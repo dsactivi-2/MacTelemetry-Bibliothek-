@@ -46,4 +46,17 @@ final class TelemetryPanelViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.selectedEvent?.id, event.id)
     }
+
+    @MainActor
+    func test_category_counts_reflect_filtered_store_contents() {
+        let store = TelemetryStore()
+        store.append(.fixture(category: .lifecycle, name: "app_started"))
+        store.append(.fixture(category: .errors, name: "file_missing"))
+        store.append(.fixture(category: .errors, name: "file_missing_again"))
+
+        let viewModel = TelemetryPanelViewModel(store: store)
+
+        XCTAssertEqual(viewModel.count(for: .lifecycle), 1)
+        XCTAssertEqual(viewModel.count(for: .errors), 2)
+    }
 }

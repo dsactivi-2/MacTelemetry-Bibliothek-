@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 import MacTelemetryKit
 
@@ -24,8 +25,24 @@ public final class TelemetryPanelViewModel {
         filteredEvents.first { $0.id == selectedEventID }
     }
 
+    public var lastEventTimestamp: Date? {
+        store.events.last?.timestamp
+    }
+
     public func select(_ event: TelemetryEvent) {
         selectedEventID = event.id
+    }
+
+    public func count(for category: TelemetryCategory) -> Int {
+        store.events.filter { $0.category == category }.count
+    }
+
+    public func exportTraceToTemporaryFile() throws -> URL {
+        let data = try TelemetryExportService().exportJSON(filteredEvents)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("telemetry-\(UUID().uuidString.lowercased()).json")
+        try data.write(to: url)
+        return url
     }
 
     public func clearEvents() {

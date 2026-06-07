@@ -19,6 +19,8 @@ The solution should provide:
 - no secret capture, payload dumps, or document-content logging
 - no invasive runtime swizzling as a primary mechanism
 - no fully automatic modification of every possible Xcode project shape
+- no undo history for `Clear` in the MVP
+- no multi-select or inline event expansion in the MVP
 
 ## Product Shape
 
@@ -75,15 +77,18 @@ Out-of-the-box means `TelemetryBootstrap.start(...)` should enable a meaningful 
 
 The host app can embed a telemetry panel powered by the package.
 
-Initial panel scope:
+MVP panel scope:
 
+- three-column macOS utility layout: filter sidebar, event list, detail pane
 - live event list
 - filter by category
 - filter by level
+- filter by source framework
 - text search
 - session summary counters
 - export trace action
 - clear local session buffer action
+- empty, no-results, error, and live-session states
 
 The panel is intended for local development and QA, not end users.
 
@@ -133,7 +138,10 @@ Each event should have a small, stable schema:
 - message
 - source framework (`SwiftUI`, `AppKit`, `Manual`)
 - session identifier
+- event identifier
 - optional safe metadata dictionary
+- optional duration or latency
+- optional error code
 
 Metadata rules:
 
@@ -141,6 +149,7 @@ Metadata rules:
 - no tokens
 - no raw document contents
 - no personally identifying payloads by default
+- no unsafe file paths in default examples or preview content
 - identifiers must be intentionally marked safe before logging
 
 ## Logging Strategy
@@ -162,6 +171,24 @@ Default categories:
 - `Commands`
 - `Actions`
 - `Errors`
+
+## UI Layout Direction
+
+Use a native macOS inspector or utility visual language, not a web dashboard.
+
+MVP layout constraints:
+
+- left filter sidebar fixed at `260px`
+- center event list flexible with `min-width: 420px`
+- right detail pane fixed at `360px`
+- event table row height `32px`
+- body type `13pt`, monospace metadata and IDs `11pt`, header `15pt semibold`
+- breakpoints:
+  - `< 900px`: hide right detail pane and show selected event detail as sheet or expandable panel
+  - `900px-1300px`: keep all three columns with reduced center flexibility
+  - `> 1300px`: full three-column layout
+
+The right detail pane is the only detail surface in the MVP.
 
 ## Integration Model
 
@@ -242,6 +269,7 @@ Verification artifacts to produce during implementation:
 - some actions cannot be captured generically without explicit wrapper adoption
 - AppKit and SwiftUI lifecycle models differ, so the API surface must avoid pretending they are identical
 - the embedded panel must not become a production dependency by accident
+- event throughput may exceed what a plain SwiftUI list handles smoothly, so the list abstraction must be replaceable
 
 ## Recommended First Implementation Slice
 
