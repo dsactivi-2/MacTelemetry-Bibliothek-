@@ -1,6 +1,7 @@
 import SwiftUI
 import MacTelemetryKit
 import MacTelemetryKitUI
+import Darwin
 
 @main
 struct TelemetryDemoApp: App {
@@ -16,6 +17,10 @@ struct TelemetryDemoApp: App {
             message: "App started",
             source: .swiftUI
         )
+
+        if CommandLine.arguments.contains("--smoke-log") {
+            exit(0)
+        }
     }
 
     var body: some Scene {
