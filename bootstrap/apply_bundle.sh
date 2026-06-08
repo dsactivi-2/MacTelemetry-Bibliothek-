@@ -48,16 +48,32 @@ fi
 HOST_TYPE="$(awk -F': ' '/^Host type:/ {print $2}' "${GUIDE_PATH}")"
 PREFERRED_ENTRY_FILE="$(awk -F': ' '/^Preferred entry file:/ {print $2}' "${GUIDE_PATH}")"
 APPKIT_DELEGATE_FILE="$(awk -F': ' '/^AppKit delegate file:/ {print $2}' "${GUIDE_PATH}" || true)"
+PACKAGE_FILE="${PROJECT_PATH}/Package.swift"
+PACKAGE_IDENTITY="$(basename "${PACKAGE_ROOT}" | tr '[:upper:]' '[:lower:]')"
+XCODEPROJ_COUNT="$(find "${PROJECT_PATH}" -maxdepth 2 -name "*.xcodeproj" | wc -l | tr -d ' ')"
+BUILD_SYSTEM="unknown"
+
+if [[ -f "${PROJECT_PATH}/Package.swift" && "${XCODEPROJ_COUNT}" != "0" ]]; then
+  BUILD_SYSTEM="hybrid"
+elif [[ -f "${PROJECT_PATH}/Package.swift" ]]; then
+  BUILD_SYSTEM="swiftpm"
+elif [[ "${XCODEPROJ_COUNT}" != "0" ]]; then
+  BUILD_SYSTEM="xcodeproj"
+fi
 
 PACKAGE_FILE="${PROJECT_PATH}/Package.swift"
 PACKAGE_IDENTITY="$(basename "${PACKAGE_ROOT}" | tr '[:upper:]' '[:lower:]')"
 
-if [[ ! -f "${PACKAGE_FILE}" ]]; then
-  echo "Only SwiftPM hosts are supported by apply_bundle.sh right now." >&2
-  exit 1
-fi
-
 escaped_package_root="${PACKAGE_ROOT//\//\\/}"
+
+require_file() {
+  local file_path="$1"
+
+  if [[ ! -f "${file_path}" ]]; then
+    echo "Expected file not found: ${file_path}" >&2
+    exit 1
+  fi
+}
 
 patch_package_file() {
   local package_file="$1"
@@ -72,20 +88,52 @@ patch_package_file() {
 patch_swiftui_entry() {
   local file_path="$1"
 
-  perl -0pi -e 's/import SwiftUI\n/import SwiftUI\nimport MacTelemetryKit\nimport MacTelemetryKitUI\n/' "${file_path}"
-  perl -0pi -e 's/struct ([A-Za-z0-9_]+): App \{\n/struct \1: App {\n    private let telemetry = TelemetryBootstrap.start(subsystem: "com.example.app")\n/' "${file_path}"
-  perl -0pi -e 's/Text\("([^"]+)"\)\n\s*\.padding\(\)/VStack {\n                Text("\1")\n                    .padding()\n                TelemetryPanelView(store: telemetry.store)\n            }/s' "${file_path}"
+  require_file "${file_path}"
+
+  if ! grep -q 'import MacTelemetryKit' "${file_path}"; then
+    perl -0pi -e 's/import SwiftUI\n/import SwiftUI\nimport MacTelemetryKit\nimport MacTelemetryKitUI\n/' "${file_path}"
+  fi
+
+  if ! grep -q 'TelemetryBootstrap.start' "${file_path}"; then
+    perl -0pi -e 's/struct ([A-Za-z0-9_]+): App \{\n/struct \1: App {\n    private let telemetry = TelemetryBootstrap.start(subsystem: "com.example.app")\n/' "${file_path}"
+  fi
+
+  if ! grep -q 'TelemetryPanelView' "${file_path}"; then
+    perl -0pi -e 's/Text\("([^"]+)"\)\n\s*\.padding\(\)/VStack {\n                Text("\1")\n                    .padding()\n                TelemetryPanelView(store: telemetry.store)\n            }/s' "${file_path}"
+  fi
+
+  if ! grep -q 'TelemetryPanelView(store: telemetry.store)' "${file_path}"; then
+    echo "Failed to apply SwiftUI panel patch to ${file_path}" >&2
+    exit 1
+  fi
 }
 
 patch_appkit_delegate() {
   local file_path="$1"
 
-  perl -0pi -e 's/import AppKit\n/import AppKit\nimport MacTelemetryKit\n/' "${file_path}"
-  perl -0pi -e 's/final class AppDelegate: NSObject, NSApplicationDelegate \{\n/final class AppDelegate: NSObject, NSApplicationDelegate {\n    private var telemetryObserver: TelemetryAppKitObserver?\n/' "${file_path}"
-  perl -0pi -e 's/func applicationDidFinishLaunching\(_ notification: Notification\) \{\n/\@MainActor\n    func applicationDidFinishLaunching(_ notification: Notification) {\n        let telemetry = TelemetryBootstrap.start(subsystem: "com.example.app")\n        telemetryObserver = telemetry.attachAppKitObserver()\n/' "${file_path}"
+  require_file "${file_path}"
+
+  if ! grep -q 'import MacTelemetryKit' "${file_path}"; then
+    perl -0pi -e 's/import AppKit\n/import AppKit\nimport MacTelemetryKit\n/' "${file_path}"
+  fi
+
+  if ! grep -q 'private var telemetryObserver: TelemetryAppKitObserver\?' "${file_path}"; then
+    perl -0pi -e 's/final class AppDelegate: NSObject, NSApplicationDelegate \{\n/final class AppDelegate: NSObject, NSApplicationDelegate {\n    private var telemetryObserver: TelemetryAppKitObserver?\n/' "${file_path}"
+  fi
+
+  if ! grep -q 'TelemetryBootstrap.start' "${file_path}"; then
+    perl -0pi -e 's/func applicationDidFinishLaunching\(_ notification: Notification\) \{\n/\@MainActor\n    func applicationDidFinishLaunching(_ notification: Notification) {\n        let telemetry = TelemetryBootstrap.start(subsystem: "com.example.app")\n        telemetryObserver = telemetry.attachAppKitObserver()\n/' "${file_path}"
+  fi
+
+  if ! grep -q 'telemetryObserver = telemetry.attachAppKitObserver()' "${file_path}"; then
+    echo "Failed to apply AppKit observer patch to ${file_path}" >&2
+    exit 1
+  fi
 }
 
-patch_package_file "${PACKAGE_FILE}"
+if [[ "${BUILD_SYSTEM}" == "swiftpm" || "${BUILD_SYSTEM}" == "hybrid" ]]; then
+  patch_package_file "${PACKAGE_FILE}"
+fi
 
 case "${HOST_TYPE}" in
   swiftui)
@@ -106,4 +154,9 @@ case "${HOST_TYPE}" in
     ;;
 esac
 
-echo "Applied bootstrap bundle to ${PROJECT_PATH}"
+if [[ "${BUILD_SYSTEM}" == "xcodeproj" ]]; then
+  echo "Applied source bundle to ${PROJECT_PATH}"
+  echo "Manual step remaining: add MacTelemetryKit and MacTelemetryKitUI as Xcode package dependencies."
+else
+  echo "Applied bootstrap bundle to ${PROJECT_PATH}"
+fi
