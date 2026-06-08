@@ -9,7 +9,8 @@ let package = Package(
     products: [
         .library(name: "MacTelemetryKit", targets: ["MacTelemetryKit"]),
         .library(name: "MacTelemetryKitUI", targets: ["MacTelemetryKitUI"]),
-        .executable(name: "MacTelemetryDemo", targets: ["MacTelemetryDemo"])
+        .executable(name: "MacTelemetryDemo", targets: ["MacTelemetryDemo"]),
+        .executable(name: "MacTelemetryHostDemo", targets: ["MacTelemetryHostDemo"])
     ],
     targets: [
         .target(name: "MacTelemetryKit"),
@@ -19,6 +20,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "MacTelemetryDemo",
+            dependencies: ["MacTelemetryKit", "MacTelemetryKitUI"]
+        ),
+        .executableTarget(
+            name: "MacTelemetryHostDemo",
             dependencies: ["MacTelemetryKit", "MacTelemetryKitUI"]
         ),
         .testTarget(
