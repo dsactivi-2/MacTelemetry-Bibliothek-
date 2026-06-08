@@ -110,6 +110,21 @@ detect_preferred_entry_file() {
   esac
 }
 
+detect_build_system() {
+  local has_package_swift="$1"
+  local has_xcodeproj="$2"
+
+  if [[ "${has_package_swift}" == "present" && "${has_xcodeproj}" == "present" ]]; then
+    echo "hybrid"
+  elif [[ "${has_package_swift}" == "present" ]]; then
+    echo "swiftpm"
+  elif [[ "${has_xcodeproj}" == "present" ]]; then
+    echo "xcodeproj"
+  else
+    echo "unknown"
+  fi
+}
+
 copy_template() {
   local template_name="$1"
   local project_path="$2"
@@ -192,6 +207,59 @@ write_integration_guide() {
   } > "${project_path}/${OUTPUT_DIR}/INTEGRATION_GUIDE.md"
 }
 
+write_dependency_setup() {
+  local project_path="$1"
+  local build_system="$2"
+
+  mkdir -p "${project_path}/${OUTPUT_DIR}"
+
+  case "${build_system}" in
+    swiftpm)
+      cat > "${project_path}/${OUTPUT_DIR}/DEPENDENCY_SETUP.md" <<'EOF'
+# Dependency Setup
+
+Swift Package Manager host:
+
+1. Add this package as a dependency in the host `Package.swift`.
+2. Link `MacTelemetryKit` and `MacTelemetryKitUI` to the executable target.
+3. Rebuild the host package after applying the generated integration snippet.
+EOF
+      ;;
+    xcodeproj)
+      cat > "${project_path}/${OUTPUT_DIR}/DEPENDENCY_SETUP.md" <<'EOF'
+# Dependency Setup
+
+Xcode project host:
+
+1. In Xcode, add the MacTelemetry package through "Add Package Dependencies...".
+2. Link `MacTelemetryKit` and `MacTelemetryKitUI` to the app target.
+3. Rebuild the app after applying the generated integration snippet.
+EOF
+      ;;
+    hybrid)
+      cat > "${project_path}/${OUTPUT_DIR}/DEPENDENCY_SETUP.md" <<'EOF'
+# Dependency Setup
+
+Hybrid host (Package.swift + xcodeproj detected):
+
+1. Decide whether the package linkage is managed through SwiftPM manifests or directly in Xcode.
+2. Add `MacTelemetryKit` and `MacTelemetryKitUI` through the chosen path.
+3. Rebuild the app after applying the generated integration snippet.
+EOF
+      ;;
+    *)
+      cat > "${project_path}/${OUTPUT_DIR}/DEPENDENCY_SETUP.md" <<'EOF'
+# Dependency Setup
+
+Unknown host build system:
+
+1. Add `MacTelemetryKit` and `MacTelemetryKitUI` using the host project's dependency management flow.
+2. Rebuild the app after applying the generated integration snippet.
+EOF
+      ;;
+  esac
+}
+
 if [[ -z "${PROJECT_PATH}" ]]; then
   write_report_header "${REPORT_PATH}" "FAIL" "<missing>" "${DRY_RUN}"
   append_report_line "${REPORT_PATH}" "CHECK: missing --project"
@@ -216,6 +284,8 @@ HOST_TYPE="$(detect_host_type "${SWIFTUI_APP_COUNT}" "${APPKIT_DELEGATE_COUNT}")
 SWIFTUI_ENTRY_FILE="$(find_first_match_path "${PROJECT_PATH}" "*App.swift" || true)"
 APPKIT_DELEGATE_FILE="$(find_first_delegate_path "${PROJECT_PATH}" || true)"
 PREFERRED_ENTRY_FILE="$(detect_preferred_entry_file "${PROJECT_PATH}" "${HOST_TYPE}")"
+PACKAGE_SWIFT_STATUS="missing"
+XCODEPROJ_STATUS="missing"
 
 if [[ -z "${SWIFTUI_ENTRY_FILE}" ]]; then
   SWIFTUI_ENTRY_FILE="none"
@@ -230,16 +300,16 @@ if [[ -z "${PREFERRED_ENTRY_FILE}" ]]; then
 fi
 
 if [[ -f "${PROJECT_PATH}/Package.swift" ]]; then
-  append_report_line "${REPORT_PATH}" "CHECK: package-swift=present"
-else
-  append_report_line "${REPORT_PATH}" "CHECK: package-swift=missing"
+  PACKAGE_SWIFT_STATUS="present"
 fi
+append_report_line "${REPORT_PATH}" "CHECK: package-swift=${PACKAGE_SWIFT_STATUS}"
 
 if find "${PROJECT_PATH}" -maxdepth 2 -name "*.xcodeproj" | grep -q .; then
-  append_report_line "${REPORT_PATH}" "CHECK: xcodeproj=present"
-else
-  append_report_line "${REPORT_PATH}" "CHECK: xcodeproj=missing"
+  XCODEPROJ_STATUS="present"
 fi
+append_report_line "${REPORT_PATH}" "CHECK: xcodeproj=${XCODEPROJ_STATUS}"
+
+BUILD_SYSTEM="$(detect_build_system "${PACKAGE_SWIFT_STATUS}" "${XCODEPROJ_STATUS}")"
 
 if [[ -d "${PROJECT_PATH}/Sources" ]]; then
   append_report_line "${REPORT_PATH}" "CHECK: sources-dir=present"
@@ -250,6 +320,7 @@ fi
 append_report_line "${REPORT_PATH}" "CHECK: swiftui-app-files=${SWIFTUI_APP_COUNT}"
 append_report_line "${REPORT_PATH}" "CHECK: appkit-delegate-files=${APPKIT_DELEGATE_COUNT}"
 append_report_line "${REPORT_PATH}" "CHECK: host-type=${HOST_TYPE}"
+append_report_line "${REPORT_PATH}" "CHECK: build-system=${BUILD_SYSTEM}"
 append_report_line "${REPORT_PATH}" "CHECK: preferred-entry-file=${PREFERRED_ENTRY_FILE}"
 
 append_report_line "${REPORT_PATH}" "SCAFFOLD: telemetry-config-example.txt"
@@ -264,6 +335,7 @@ fi
 
 append_report_line "${REPORT_PATH}" "SCAFFOLD: NEXT_STEPS.md"
 append_report_line "${REPORT_PATH}" "SCAFFOLD: INTEGRATION_GUIDE.md"
+append_report_line "${REPORT_PATH}" "SCAFFOLD: DEPENDENCY_SETUP.md"
 
 if [[ "${DRY_RUN}" != "true" ]]; then
   copy_template "telemetry-config-example.txt" "${PROJECT_PATH}"
@@ -284,6 +356,9 @@ if [[ "${DRY_RUN}" != "true" ]]; then
 
   write_integration_guide "${PROJECT_PATH}" "${HOST_TYPE}" "${PREFERRED_ENTRY_FILE}" "${SWIFTUI_ENTRY_FILE}" "${APPKIT_DELEGATE_FILE}"
   append_report_line "${REPORT_PATH}" "OUTPUT: ${OUTPUT_DIR}/INTEGRATION_GUIDE.md"
+
+  write_dependency_setup "${PROJECT_PATH}" "${BUILD_SYSTEM}"
+  append_report_line "${REPORT_PATH}" "OUTPUT: ${OUTPUT_DIR}/DEPENDENCY_SETUP.md"
 fi
 
 cat "${REPORT_PATH}"
