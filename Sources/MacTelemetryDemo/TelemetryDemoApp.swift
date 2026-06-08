@@ -86,6 +86,10 @@ private struct TelemetryDemoRootView: View {
             }
 
             VStack(alignment: .leading, spacing: 12) {
+                Text("AppKit observer also tracks app activation and window lifecycle changes.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
                 Picker("Route", selection: $currentRoute) {
                     ForEach(routes, id: \.self) { route in
                         Text(route.capitalized).tag(route)
