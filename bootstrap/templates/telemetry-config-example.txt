@@ -1,0 +1,3 @@
+subsystem=com.example.app
+auto_capture_enabled=true
+panel_enabled=true

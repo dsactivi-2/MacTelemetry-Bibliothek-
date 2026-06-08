@@ -1,0 +1,2 @@
+let telemetry = TelemetryBootstrap.start(subsystem: "com.example.app")
+let observer = telemetry.attachAppKitObserver()
