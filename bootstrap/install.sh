@@ -260,6 +260,76 @@ EOF
   esac
 }
 
+write_patch_suggestion() {
+  local project_path="$1"
+  local host_type="$2"
+  local preferred_entry_file="$3"
+  local delegate_entry_file="$4"
+
+  mkdir -p "${project_path}/${OUTPUT_DIR}"
+
+  case "${host_type}" in
+    swiftui)
+      cat > "${project_path}/${OUTPUT_DIR}/PATCH_SUGGESTION.md" <<EOF
+# Patch Suggestion
+
+Target file: ${preferred_entry_file}
+
+Add the bootstrap call and panel wiring in the app entry path:
+
+\`\`\`swift
+let telemetry = TelemetryBootstrap.start(subsystem: "com.example.app")
+TelemetryPanelView(store: telemetry.store)
+\`\`\`
+EOF
+      ;;
+    appkit)
+      cat > "${project_path}/${OUTPUT_DIR}/PATCH_SUGGESTION.md" <<EOF
+# Patch Suggestion
+
+Target file: ${preferred_entry_file}
+
+Add the bootstrap call and retain the observer in the AppKit startup path:
+
+\`\`\`swift
+let telemetry = TelemetryBootstrap.start(subsystem: "com.example.app")
+let observer = telemetry.attachAppKitObserver()
+\`\`\`
+EOF
+      ;;
+    mixed)
+      cat > "${project_path}/${OUTPUT_DIR}/PATCH_SUGGESTION.md" <<EOF
+# Patch Suggestion
+
+Target file: ${preferred_entry_file}
+Secondary file: ${delegate_entry_file}
+
+Apply the primary SwiftUI bootstrap in the app entry file:
+
+\`\`\`swift
+let telemetry = TelemetryBootstrap.start(subsystem: "com.example.app")
+TelemetryPanelView(store: telemetry.store)
+\`\`\`
+
+If the AppKit delegate is part of the real startup path, also attach the observer there:
+
+\`\`\`swift
+let observer = telemetry.attachAppKitObserver()
+\`\`\`
+EOF
+      ;;
+    *)
+      cat > "${project_path}/${OUTPUT_DIR}/PATCH_SUGGESTION.md" <<EOF
+# Patch Suggestion
+
+Target file: ${preferred_entry_file}
+
+Add the generated integration snippet to the host app entry path after confirming which startup file is authoritative.
+EOF
+      ;;
+  esac
+}
+
 if [[ -z "${PROJECT_PATH}" ]]; then
   write_report_header "${REPORT_PATH}" "FAIL" "<missing>" "${DRY_RUN}"
   append_report_line "${REPORT_PATH}" "CHECK: missing --project"
@@ -336,6 +406,7 @@ fi
 append_report_line "${REPORT_PATH}" "SCAFFOLD: NEXT_STEPS.md"
 append_report_line "${REPORT_PATH}" "SCAFFOLD: INTEGRATION_GUIDE.md"
 append_report_line "${REPORT_PATH}" "SCAFFOLD: DEPENDENCY_SETUP.md"
+append_report_line "${REPORT_PATH}" "SCAFFOLD: PATCH_SUGGESTION.md"
 
 if [[ "${DRY_RUN}" != "true" ]]; then
   copy_template "telemetry-config-example.txt" "${PROJECT_PATH}"
@@ -359,6 +430,9 @@ if [[ "${DRY_RUN}" != "true" ]]; then
 
   write_dependency_setup "${PROJECT_PATH}" "${BUILD_SYSTEM}"
   append_report_line "${REPORT_PATH}" "OUTPUT: ${OUTPUT_DIR}/DEPENDENCY_SETUP.md"
+
+  write_patch_suggestion "${PROJECT_PATH}" "${HOST_TYPE}" "${PREFERRED_ENTRY_FILE}" "${APPKIT_DELEGATE_FILE}"
+  append_report_line "${REPORT_PATH}" "OUTPUT: ${OUTPUT_DIR}/PATCH_SUGGESTION.md"
 fi
 
 cat "${REPORT_PATH}"
