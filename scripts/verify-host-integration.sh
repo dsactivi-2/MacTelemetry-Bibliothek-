@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FIXTURE_DIR="${ROOT_DIR}/fixtures/HostSwiftUIApp"
+SWIFTUI_FIXTURE_DIR="${ROOT_DIR}/fixtures/HostSwiftUIApp"
+APPKIT_FIXTURE_DIR="${ROOT_DIR}/fixtures/HostAppKitApp"
 TMP_OUTPUT="$(mktemp)"
 trap 'rm -f "${TMP_OUTPUT}"' EXIT
 
@@ -19,18 +20,34 @@ echo "[verify] inspect host demo unified log"
 grep -q 'app_started: App started' "${TMP_OUTPUT}"
 
 echo "[verify] bootstrap dry-run against host fixture"
-bash bootstrap/install.sh --project "${FIXTURE_DIR}" --dry-run > "${TMP_OUTPUT}"
+bash bootstrap/install.sh --project "${SWIFTUI_FIXTURE_DIR}" --dry-run > "${TMP_OUTPUT}"
 grep -q 'CHECK: package-swift=present' "${TMP_OUTPUT}"
 grep -q 'CHECK: swiftui-app-files=1' "${TMP_OUTPUT}"
 grep -q 'CHECK: host-type=swiftui' "${TMP_OUTPUT}"
 grep -q 'SCAFFOLD: integration-snippet-swiftui.txt' "${TMP_OUTPUT}"
 
 echo "[verify] bootstrap apply-mode against host fixture"
-rm -rf "${FIXTURE_DIR}/.mactelemetry-bootstrap"
-bash bootstrap/install.sh --project "${FIXTURE_DIR}" > "${TMP_OUTPUT}"
-test -f "${FIXTURE_DIR}/.mactelemetry-bootstrap/telemetry-config-example.txt"
-test -f "${FIXTURE_DIR}/.mactelemetry-bootstrap/integration-snippet-swiftui.txt"
-test -f "${FIXTURE_DIR}/.mactelemetry-bootstrap/NEXT_STEPS.md"
-grep -q 'integration-snippet-swiftui.txt' "${FIXTURE_DIR}/.mactelemetry-bootstrap/NEXT_STEPS.md"
+rm -rf "${SWIFTUI_FIXTURE_DIR}/.mactelemetry-bootstrap"
+bash bootstrap/install.sh --project "${SWIFTUI_FIXTURE_DIR}" > "${TMP_OUTPUT}"
+test -f "${SWIFTUI_FIXTURE_DIR}/.mactelemetry-bootstrap/telemetry-config-example.txt"
+test -f "${SWIFTUI_FIXTURE_DIR}/.mactelemetry-bootstrap/integration-snippet-swiftui.txt"
+test -f "${SWIFTUI_FIXTURE_DIR}/.mactelemetry-bootstrap/NEXT_STEPS.md"
+grep -q 'integration-snippet-swiftui.txt' "${SWIFTUI_FIXTURE_DIR}/.mactelemetry-bootstrap/NEXT_STEPS.md"
+
+echo "[verify] bootstrap dry-run against appkit host fixture"
+bash bootstrap/install.sh --project "${APPKIT_FIXTURE_DIR}" --dry-run > "${TMP_OUTPUT}"
+grep -q 'CHECK: package-swift=present' "${TMP_OUTPUT}"
+grep -q 'CHECK: swiftui-app-files=0' "${TMP_OUTPUT}"
+grep -q 'CHECK: appkit-delegate-files=1' "${TMP_OUTPUT}"
+grep -q 'CHECK: host-type=appkit' "${TMP_OUTPUT}"
+grep -q 'SCAFFOLD: integration-snippet-appkit.txt' "${TMP_OUTPUT}"
+
+echo "[verify] bootstrap apply-mode against appkit host fixture"
+rm -rf "${APPKIT_FIXTURE_DIR}/.mactelemetry-bootstrap"
+bash bootstrap/install.sh --project "${APPKIT_FIXTURE_DIR}" > "${TMP_OUTPUT}"
+test -f "${APPKIT_FIXTURE_DIR}/.mactelemetry-bootstrap/telemetry-config-example.txt"
+test -f "${APPKIT_FIXTURE_DIR}/.mactelemetry-bootstrap/integration-snippet-appkit.txt"
+test -f "${APPKIT_FIXTURE_DIR}/.mactelemetry-bootstrap/NEXT_STEPS.md"
+grep -q 'integration-snippet-appkit.txt' "${APPKIT_FIXTURE_DIR}/.mactelemetry-bootstrap/NEXT_STEPS.md"
 
 echo "PASS: host integration verification"
